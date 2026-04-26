@@ -3,7 +3,6 @@ import logging
 import os
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from multiprocessing import Process
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram.ext import Application, CallbackQueryHandler, ChatJoinRequestHandler, CommandHandler, MessageHandler, filters
@@ -122,21 +121,21 @@ def run_bot(bot_token: str, bot_role: str) -> None:
 
 
 def run() -> None:
-    secondary_process: Process | None = None
-    try:
-        _start_health_server_if_needed()
+    _start_health_server_if_needed()
 
-        if BOT_TOKEN1 and BOT_TOKEN1 != BOT_TOKEN:
-            secondary_process = Process(target=run_bot, args=(BOT_TOKEN1, "secondary"), daemon=True)
-            secondary_process.start()
-        elif BOT_TOKEN1 == BOT_TOKEN:
-            logger.warning("BOT_TOKEN1 matches BOT_TOKEN. Secondary bot will not be started.")
+    if BOT_TOKEN1 and BOT_TOKEN1 != BOT_TOKEN:
+        secondary_thread = threading.Thread(
+            target=run_bot,
+            args=(BOT_TOKEN1, "secondary"),
+            daemon=True,
+            name="secondary-bot"
+        )
+        secondary_thread.start()
+        logger.info("Secondary bot thread started")
+    elif BOT_TOKEN1 == BOT_TOKEN:
+        logger.warning("BOT_TOKEN1 matches BOT_TOKEN. Secondary bot will not be started.")
 
-        run_bot(BOT_TOKEN, "primary")
-    finally:
-        if secondary_process and secondary_process.is_alive():
-            secondary_process.terminate()
-            secondary_process.join(timeout=5)
+    run_bot(BOT_TOKEN, "primary")
 
 
 if __name__ == "__main__":
