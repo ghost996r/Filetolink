@@ -33,21 +33,6 @@ def _schedule_delete(context: ContextTypes.DEFAULT_TYPE, message_obj: Message, d
 async def send_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_data) -> None:
     message = get_target_message(update)
     if not message or not update.effective_user:
-        # Try via join_request user if normal message not available
-        join_request = update.chat_join_request
-        if join_request:
-            user = join_request.from_user
-            _, file_path, file_name, _, _, _, storage_chat_id, storage_message_id = file_data
-            try:
-                if storage_chat_id and storage_message_id:
-                    await context.bot.copy_message(
-                        chat_id=user.id,
-                        from_chat_id=storage_chat_id,
-                        message_id=storage_message_id,
-                    )
-                await log_download(context, user.id, user.username, user.first_name, file_name)
-            except Exception:
-                pass
         return
 
     _, file_path, file_name, _, _, _, storage_chat_id, storage_message_id = file_data
@@ -99,20 +84,6 @@ async def send_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_dat
         await message.reply_text("❌ Error delivering file! Please try again.")
 
 
-async def send_file_by_id(update: Update, context: ContextTypes.DEFAULT_TYPE, file_id: str) -> None:
-    """Deliver file directly by file_id — used after join request detected."""
-    file_data = get_active_file(file_id)
-    if not file_data:
-        try:
-            join_request = update.chat_join_request
-            if join_request:
-                await join_request.from_user.send_message("❌ File not found or expired!")
-        except Exception:
-            pass
-        return
-    await send_file(update, context, file_data)
-
-
 async def deliver_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_id: str) -> None:
     message = get_target_message(update)
     if not message or not update.effective_user:
@@ -142,14 +113,15 @@ async def deliver_callback_handler(update: Update, context: ContextTypes.DEFAULT
     await query.answer()
     if query.data.startswith("check_"):
         file_id = query.data.split("_", 1)[1]
-
+        
+        # For secondary bot (BOT_TOKEN1), check channel membership if required
         if _is_secondary_bot(context) and REQUIRED_CHANNELS:
             is_member = await user_in_required_channels(context, query.from_user.id)
             if not is_member:
                 await query.answer(
-                    "❌ You still haven't sent a join request. Please send a join request to the channel first.",
+                    "❌ You still haven't passed the channel check. If the links are private invite links, add a verification target with `|@channelusername` or `|-100...`.",
                     show_alert=True,
                 )
                 return
-
+        
         await deliver_file(update, context, file_id)
