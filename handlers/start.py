@@ -6,7 +6,7 @@ from services.user_service import save_user
 from utils.helpers import get_target_message
 
 from config import REQUIRED_CHANNELS
-from handlers.channel import user_in_required_channels, build_join_keyboard_for_required_channels
+from handlers.channel import user_in_required_channels, build_join_keyboard_for_required_channels, set_pending_file
 
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = get_target_message(update)
@@ -18,17 +18,17 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     if context.args:
         bot_role = context.application.bot_data.get("role", "primary") if context.application else "primary"
-        
-        # For secondary bot (BOT_TOKEN1), check channel membership if channels are required
+
         if bot_role == "secondary" and REQUIRED_CHANNELS:
             is_member = await user_in_required_channels(context, user.id)
             if not is_member:
+                set_pending_file(user.id, context.args[0])
                 await message.reply_text(
-                    "❌ You need to join the required channel(s) to access this file.\n\nPlease join first and then try again:",
+                    "❌ You need to join the required channel(s) to access this file.\n\nPlease send a join request and then try again:",
                     reply_markup=build_join_keyboard_for_required_channels(context.args[0]),
                 )
                 return
-        
+
         await deliver_file(update, context, context.args[0])
         return
 
