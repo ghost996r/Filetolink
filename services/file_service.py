@@ -45,14 +45,15 @@ def get_active_file(file_id: str):
 
 
 async def log_download(context, user_id: int, username: str | None, first_name: str | None, file_name: str) -> None:
+    uname = f"@{username}" if username else "unknown"
     log_msg = (
-        "👤 **New Activity**\n\n"
-        f"👤 **User:** {first_name or 'Unknown'} (@{username or 'unknown'})\n"
-        f"🆔 **ID:** `{user_id}`\n"
-        f"📝 **Action:** Downloaded: {file_name}\n"
-        f"⏰ **Time:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        "👤 <b>New Activity</b>\n\n"
+        f"👤 <b>User:</b> {first_name or 'Unknown'} (<code>{uname}</code>)\n"
+        f"🆔 <b>ID:</b> <code>{user_id}</code>\n"
+        f"📝 <b>Action:</b> Downloaded: {file_name}\n"
+        f"⏰ <b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
     try:
-        await context.bot.send_message(LOG_CHANNEL, log_msg, parse_mode=ParseMode.MARKDOWN)
+        await context.bot.send_message(LOG_CHANNEL, log_msg, parse_mode=ParseMode.HTML)
     except Exception:
         pass
