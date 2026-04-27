@@ -5,7 +5,8 @@ from config import ADMIN_ID, REQUIRED_CHANNEL_ENTRIES, REQUIRED_CHANNEL_VERIFY_T
 from database.db import add_channel, list_channels, remove_channel
 from utils.helpers import ADMIN_STATE, get_target_message, is_admin, normalize_channel_username, parse_quoted_parts
 
-_PENDING_JOIN_ACCESS: set[tuple[int, str]] = set()
+# { user_id -> file_id } - tracks which file user was trying to access
+_PENDING_JOIN_ACCESS: dict[int, str] = {}
 
 
 def _normalize_channel_target(target: str | int | None) -> str | None:
@@ -41,27 +42,24 @@ async def user_in_channels(context: ContextTypes.DEFAULT_TYPE, user_id: int) -> 
 
 
 async def user_in_required_channels(context: ContextTypes.DEFAULT_TYPE, user_id: int) -> bool:
-    """Check if user is a member of all configured required channels for BOT_TOKEN1."""
     if not REQUIRED_CHANNEL_ENTRIES:
-        return True  # No channels required, allow access
+        return True
 
     for _, verify_target in REQUIRED_CHANNEL_ENTRIES:
         if verify_target is None:
             return False
 
-        pending_key = (user_id, _normalize_channel_target(verify_target) or "")
-        if pending_key in _PENDING_JOIN_ACCESS:
-            continue
+        if user_id in _PENDING_JOIN_ACCESS:
+            return True
 
         try:
             member = await context.bot.get_chat_member(verify_target, user_id)
             if member.status in ["left", "kicked"]:
                 return False
         except Exception:
-            # If bot can't check (not member of channel), deny access
-            if pending_key not in _PENDING_JOIN_ACCESS:
-                return False
+            return False
     return True
+
 
 def build_join_keyboard(file_id: str) -> InlineKeyboardMarkup:
     keyboard = []
@@ -73,16 +71,23 @@ def build_join_keyboard(file_id: str) -> InlineKeyboardMarkup:
 
 
 def build_join_keyboard_for_required_channels(file_id: str) -> InlineKeyboardMarkup:
-    """Build keyboard with join buttons for REQUIRED_CHANNELS (for BOT_TOKEN1)."""
     keyboard = []
     for channel_link in REQUIRED_CHANNELS:
         keyboard.append([InlineKeyboardButton("📢 Join Channel", url=channel_link)])
-    keyboard.append([InlineKeyboardButton("✅ Joined? Try Again", callback_data=f"check_{file_id}")])
+    keyboard.append([InlineKeyboardButton("✅ Sent Request? Try Again", callback_data=f"check_{file_id}")])
     return InlineKeyboardMarkup(keyboard)
 
 
+def set_pending_file(user_id: int, file_id: str) -> None:
+    _PENDING_JOIN_ACCESS[user_id] = file_id
+
+
+def get_pending_file(user_id: int) -> str | None:
+    return _PENDING_JOIN_ACCESS.pop(user_id, None)
+
+
 async def channel_join_request_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Auto-approve required channel join requests and allow immediate access."""
+    """Detect join request and deliver pending file WITHOUT approving."""
     join_request = update.chat_join_request
     if not join_request:
         return
@@ -90,14 +95,23 @@ async def channel_join_request_handler(update: Update, context: ContextTypes.DEF
     if context.application and context.application.bot_data.get("role") != "secondary":
         return
 
+    user_id = join_request.from_user.id
+
     for join_target, verify_target in REQUIRED_CHANNEL_ENTRIES:
         if _chat_matches_target(join_request.chat, verify_target):
-            _PENDING_JOIN_ACCESS.add((join_request.from_user.id, _normalize_channel_target(verify_target) or ""))
-            try:
-                await join_request.approve()
-            except Exception:
-                pass
+            file_id = get_pending_file(user_id)
+            if file_id:
+                from handlers.deliver import send_file_by_id
+                await send_file_by_id(update, context, file_id)
+            else:
+                try:
+                    await join_request.from_user.send_message(
+                        "✅ Request received! Click your file link again to get the file."
+                    )
+                except Exception:
+                    pass
             return
+
 
 async def add_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = get_target_message(update)
