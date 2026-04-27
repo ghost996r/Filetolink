@@ -33,15 +33,16 @@ class FileBotHandlers:
         database.save_user(user_id, username, first_name)
 
     async def log_user_activity(self, context: ContextTypes.DEFAULT_TYPE, user_id: int, username: Optional[str], first_name: Optional[str], action: str) -> None:
+        uname = f"@{username}" if username else "unknown"
         log_msg = (
-            "👤 **New Activity**\n\n"
-            f"👤 **User:** {first_name or 'Unknown'} (@{username or 'unknown'})\n"
-            f"🆔 **ID:** `{user_id}`\n"
-            f"📝 **Action:** {action}\n"
-            f"⏰ **Time:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            "👤 <b>New Activity</b>\n\n"
+            f"👤 <b>User:</b> {first_name or 'Unknown'} (<code>{uname}</code>)\n"
+            f"🆔 <b>ID:</b> <code>{user_id}</code>\n"
+            f"📝 <b>Action:</b> {action}\n"
+            f"⏰ <b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
         try:
-            await context.bot.send_message(LOG_CHANNEL, log_msg, parse_mode=ParseMode.MARKDOWN)
+            await context.bot.send_message(LOG_CHANNEL, log_msg, parse_mode=ParseMode.HTML)
         except Exception:
             logger.exception("Failed to send log activity")
 
