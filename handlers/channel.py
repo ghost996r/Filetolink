@@ -14,14 +14,14 @@ async def user_in_channels(context: ContextTypes.DEFAULT_TYPE, user_id: int) -> 
     channels = list_channels()
     if not channels:
         return True
-    for channel_id, _ in channels:
+    for channel_id, _, invite_link in channels:
         try:
             member = await context.bot.get_chat_member(channel_id, user_id)
             if member.status in ["left", "kicked"]:
                 return False
         except Exception:
-            # Private channel — bot cannot check membership
-            # Check if user has pending join request instead
+            # Private channel — bot cannot check membership directly
+            # Only allow if user has pending join request recorded
             if user_id not in _PENDING_JOIN_ACCESS:
                 return False
     return True
@@ -30,13 +30,13 @@ async def user_in_channels(context: ContextTypes.DEFAULT_TYPE, user_id: int) -> 
 def build_join_keyboard(file_id: str) -> InlineKeyboardMarkup:
     """Build keyboard with join buttons for all database channels."""
     keyboard = []
-    for channel_id, channel_username in list_channels():
-        if channel_username and not channel_username.startswith("-"):
+    for channel_id, channel_username, invite_link in list_channels():
+        # Private channel — use invite link
+        if invite_link:
+            keyboard.append([InlineKeyboardButton("📢 Join Request Bhejo", url=invite_link)])
+        elif channel_username and not channel_username.startswith("-"):
             clean = channel_username.lstrip("@")
             keyboard.append([InlineKeyboardButton("📢 Join Channel", url=f"https://t.me/{clean}")])
-        else:
-            # Private channel — show request button
-            keyboard.append([InlineKeyboardButton("📢 Send Join Request", url=f"https://t.me/c/{str(channel_id).replace('-100', '')}")])
     keyboard.append([InlineKeyboardButton("✅ Done? Try Again", callback_data=f"check_{file_id}")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -63,7 +63,7 @@ async def channel_join_request_handler(update: Update, context: ContextTypes.DEF
     # Check against all database channels
     channels = list_channels()
     channel_ids = []
-    for ch_id, _ in channels:
+    for ch_id, _, invite_link in channels:
         try:
             channel_ids.append(int(ch_id))
         except (ValueError, TypeError):
@@ -95,12 +95,17 @@ async def add_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     if not context.args:
-        await message.reply_text("Usage: /addchannel @channelusername or channel_id")
+        await message.reply_text(
+            "Usage:\n"
+            "Public: /addchannel @username\n"
+            "Private: /addchannel -1001234567890 https://t.me/+xxxxxxxx"
+        )
         return
 
     channel_username = normalize_channel_username(context.args[0])
-    add_channel(channel_username, update.effective_user.id)
-    await message.reply_text(f"✅ Channel added: {channel_username}")
+    invite_link = context.args[1] if len(context.args) > 1 else ""
+    add_channel(channel_username, update.effective_user.id, invite_link)
+    await message.reply_text(f"✅ Channel added: {channel_username}" + (f"\n🔗 Invite link: {invite_link}" if invite_link else ""))
 
 
 async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
