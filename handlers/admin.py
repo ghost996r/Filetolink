@@ -53,7 +53,7 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
         if not channels:
             await query.edit_message_text("No channels to remove.")
             return
-        keyboard = [[InlineKeyboardButton(channel_username, callback_data=f"remove_{channel_id}")] for channel_id, channel_username in channels]
+        keyboard = [[InlineKeyboardButton(channel_username, callback_data=f"remove_{channel_id}")] for channel_id, channel_username, _ in channels]
         await query.edit_message_text("Select channel to remove:", reply_markup=InlineKeyboardMarkup(keyboard))
     elif query.data == "channel_list":
         channels = list_channels()
@@ -61,8 +61,11 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
             await query.edit_message_text("Channel list is empty.")
             return
         text = "📋 **Channel List**\n\n"
-        for _, channel_username in channels:
-            text += f"• {channel_username}\n"
+        for _, channel_username, invite_link in channels:
+            text += f"• {channel_username}"
+            if invite_link:
+                text += f" 🔗"
+            text += "\n"
         await query.edit_message_text(text)
 
 
