@@ -20,10 +20,10 @@ async def user_in_channels(context: ContextTypes.DEFAULT_TYPE, user_id: int) -> 
             if member.status in ["left", "kicked"]:
                 return False
         except Exception:
-            # Private channel — can't check membership, use pending check
-            if user_id in _PENDING_JOIN_ACCESS:
-                return True
-            return False
+            # Private channel — bot cannot check membership
+            # Check if user has pending join request instead
+            if user_id not in _PENDING_JOIN_ACCESS:
+                return False
     return True
 
 
