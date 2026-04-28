@@ -5,8 +5,7 @@ from handlers.deliver import deliver_file
 from services.user_service import save_user
 from utils.helpers import get_target_message
 
-from config import REQUIRED_CHANNELS
-from handlers.channel import user_in_required_channels, build_join_keyboard_for_required_channels
+from handlers.channel import user_in_channels, build_join_keyboard, set_pending_file
 
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = get_target_message(update)
@@ -17,18 +16,17 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await save_user(user.id, user.username, user.first_name)
 
     if context.args:
-        bot_role = context.application.bot_data.get("role", "primary") if context.application else "primary"
-        
-        # For secondary bot (BOT_TOKEN1), check channel membership if channels are required
-        if bot_role == "secondary" and REQUIRED_CHANNELS:
-            is_member = await user_in_required_channels(context, user.id)
-            if not is_member:
-                await message.reply_text(
-                    "❌ You need to join the required channel(s) to access this file.\n\nPlease join first and then try again:",
-                    reply_markup=build_join_keyboard_for_required_channels(context.args[0]),
-                )
-                return
-        
+        # Check if user is in all required channels
+        is_member = await user_in_channels(context, user.id)
+        if not is_member:
+            # Save pending file — deliver after join request
+            set_pending_file(user.id, context.args[0])
+            await message.reply_text(
+                "❌ Pehle channel join karo ya join request bhejo!\n\nRequest bhejne ke baad file link dobara click karo:",
+                reply_markup=build_join_keyboard(context.args[0]),
+            )
+            return
+
         await deliver_file(update, context, context.args[0])
         return
 
