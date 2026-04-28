@@ -296,13 +296,14 @@ def normalize_channel_username(channel_username: str) -> str:
     return username
 
 
-def add_channel(channel_username: str, added_by: int) -> str:
+def add_channel(channel_username: str, added_by: int, invite_link: str = "") -> str:
     normalized = normalize_channel_username(channel_username)
     if USE_SUPABASE:
         _supabase.table("channels").upsert(
             {
                 "channel_id": normalized,
                 "channel_username": normalized,
+                "invite_link": invite_link,
                 "added_by": added_by,
                 "added_at": _now_iso(),
             },
@@ -333,16 +334,16 @@ def remove_channel(channel_id: str) -> None:
     conn.close()
 
 
-def list_channels() -> List[Tuple[str, str]]:
+def list_channels() -> List[Tuple[str, str, str]]:
     if USE_SUPABASE:
-        resp = _supabase.table("channels").select("channel_id,channel_username").order("added_at", desc=True).execute()
-        return [(row.get("channel_id"), row.get("channel_username")) for row in (resp.data or [])]
+        resp = _supabase.table("channels").select("channel_id,channel_username,invite_link").order("added_at", desc=True).execute()
+        return [(row.get("channel_id"), row.get("channel_username"), row.get("invite_link") or "") for row in (resp.data or [])]
 
     conn = get_connection()
     cur = conn.cursor()
     rows = cur.execute("SELECT channel_id, channel_username FROM channels ORDER BY added_at DESC").fetchall()
     conn.close()
-    return rows
+    return [(r[0], r[1], "") for r in rows]
 
 
 def add_broadcast_record(message_id: int, chat_id: int, expires_at: str) -> None:
